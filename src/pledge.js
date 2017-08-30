@@ -29,6 +29,9 @@ class $Promise {
     if (this._state === 'pending') {
       this._state = 'rejected';
       this._value = error;
+      if (this._handlerGroups.length > 0) {
+        this._callHandlers();
+      }
     }
   }
 
@@ -41,9 +44,18 @@ class $Promise {
   }
 
   _callHandlers() {
-    for (var i = 0; i < this._handlerGroups.length; i++) {
-      this._handlerGroups[i].successCb(this._value);
+    if (this._state === 'fulfilled') {
+      for (var i = 0; i < this._handlerGroups.length; i++) {
+        this._handlerGroups[i].successCb(this._value);
+      }
+      this._handlerGroups = [];
+    } else {
+      for (var i = 0; i < this._handlerGroups.length; i++) {
+        this._handlerGroups[i].errorCb(this._value);
+      }
+      this._handlerGroups = [];
     }
+
   }
 
   then(success, error) {
@@ -52,8 +64,15 @@ class $Promise {
     handler.errorCb = typeof error === 'function' ? error : null;
     this._handlerGroups.push(handler);
     if (this._state === 'fulfilled') {
-      success(this._value);
+      this._callHandlers();
     }
+    if (this._state === 'rejected' && error) {
+      this._callHandlers();
+    }
+  }
+
+  catch(error) {
+    this.then(null, error);
   }
 }
 
