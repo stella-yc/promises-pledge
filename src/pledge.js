@@ -11,6 +11,7 @@ class $Promise {
     }
     this.executor = executor;
     this._state = 'pending';
+    this._handlerGroups = [];
     executor.call(this, this.resolve.bind(this), this.reject.bind(this));
   }
 
@@ -18,6 +19,9 @@ class $Promise {
     if (this._state === 'pending') {
       this._state = 'fulfilled';
       this._value = value;
+      if (this._handlerGroups.length > 0) {
+        this._callHandlers();
+      }
     }
   }
 
@@ -34,6 +38,22 @@ class $Promise {
 
   reject(value) {
     this._internalReject(value);
+  }
+
+  _callHandlers() {
+    for (var i = 0; i < this._handlerGroups.length; i++) {
+      this._handlerGroups[i].successCb(this._value);
+    }
+  }
+
+  then(success, error) {
+    const handler = {};
+    handler.successCb = typeof success === 'function' ? success : null;
+    handler.errorCb = typeof error === 'function' ? error : null;
+    this._handlerGroups.push(handler);
+    if (this._state === 'fulfilled') {
+      success(this._value);
+    }
   }
 }
 
