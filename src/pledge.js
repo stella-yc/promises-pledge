@@ -3,6 +3,7 @@
 Promises Workshop: build the pledge.js ES6-style promise library
 ----------------------------------------------------------------*/
 // YOUR CODE HERE:
+function noOp(){}
 
 class $Promise {
   constructor(executor) {
@@ -44,24 +45,44 @@ class $Promise {
   }
 
   _callHandlers() {
+    let handlerCalled = false;
     if (this._state === 'fulfilled') {
       for (var i = 0; i < this._handlerGroups.length; i++) {
-        this._handlerGroups[i].successCb(this._value);
+        if (this._handlerGroups[i].successCb) {
+          let promiseValue = this._handlerGroups[i].successCb(this._value);
+          try {
+            this._handlerGroups[i].downstreamPromise.resolve(promiseValue);
+          }
+          catch (e) {
+            this._handlerGroups[i + 1].downstreamPromise.reject(e);
+          }
+          handlerCalled = true;
+        }
       }
-      this._handlerGroups = [];
+      if (!handlerCalled) {
+        this._handlerGroups[0].downstreamPromise.resolve(this._value);
+      }
     } else {
       for (var i = 0; i < this._handlerGroups.length; i++) {
-        this._handlerGroups[i].errorCb(this._value);
+        if (this._handlerGroups[i].errorCb) {
+          let promiseValue = this._handlerGroups[i].errorCb(this._value);
+          this._handlerGroups[i].downstreamPromise.resolve(promiseValue);
+          handlerCalled = true;
+        }
       }
-      this._handlerGroups = [];
+      if (!handlerCalled) {
+        this._handlerGroups[0].downstreamPromise.reject(this._value);
+      }
     }
 
+    this._handlerGroups = [];
   }
 
   then(success, error) {
     const handler = {};
     handler.successCb = typeof success === 'function' ? success : null;
     handler.errorCb = typeof error === 'function' ? error : null;
+    handler.downstreamPromise = new $Promise(noOp);
     this._handlerGroups.push(handler);
     if (this._state === 'fulfilled') {
       this._callHandlers();
@@ -69,10 +90,11 @@ class $Promise {
     if (this._state === 'rejected' && error) {
       this._callHandlers();
     }
+    return handler.downstreamPromise;
   }
 
   catch(error) {
-    this.then(null, error);
+    return this.then(null, error);
   }
 }
 
